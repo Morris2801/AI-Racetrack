@@ -2,181 +2,208 @@ import turtle
 import random
 import math
 import time
+import os
 
 # Screen setup
 screen = turtle.Screen()
 screen.bgcolor("green")
-screen.title("AI Racing Track")
+screen.title("AI Racing Track - Sensor-Based Learning")
 screen.setup(1200, 800)
 screen.tracer(0)
 
 # Global speed control
 simulation_speed = 1
 
-# Speed slider setup
+# UI Elements
+ui_generation = None
+ui_stats = None
+
+def setup_ui():
+    global ui_generation, ui_stats
+    
+    # Generation counter
+    ui_generation = turtle.Turtle()
+    ui_generation.hideturtle()
+    ui_generation.penup()
+    ui_generation.goto(-580, 360)
+    ui_generation.color("white")
+    
+    # Stats display
+    ui_stats = turtle.Turtle()
+    ui_stats.hideturtle()
+    ui_stats.penup()
+    ui_stats.goto(-580, 320)
+    ui_stats.color("white")
+    
+    # Speed control info
+    speed_info = turtle.Turtle()
+    speed_info.hideturtle()
+    speed_info.penup()
+    speed_info.goto(450, 360)
+    speed_info.color("white")
+    speed_info.write("Speed Controls:\n↑ Up: Increase\n↓ Down: Decrease", 
+                     font=("Arial", 10, "bold"))
+
+def update_ui(gen, best_fitness, best_lap, checkpoints):
+    ui_generation.clear()
+    ui_generation.write(f"Generation: {gen}", font=("Arial", 16, "bold"))
+    
+    ui_stats.clear()
+    stats_text = f"\nBest Fitness: {best_fitness:.0f}\n"
+    stats_text += f"\nCheckpoints: {checkpoints}/8\n"
+    if best_lap < float('inf'):
+        stats_text += f"Best Lap: {best_lap} steps"
+    ui_stats.write(stats_text, font=("Arial", 12, "normal"))
+
 def setup_speed_slider():
     slider = turtle.Turtle()
-    slider.shape("square")
-    slider.color("blue")
-    slider.penup()
-    slider.goto(450, 350)
-    slider.write("Speed: 1x", font=("Arial", 12, "normal"))
     slider.hideturtle()
+    slider.penup()
+    slider.goto(450, 320)
+    slider.color("white")
     
     def speed_up():
         global simulation_speed
-        simulation_speed = min(10, simulation_speed + 1)
-        update_speed_display()
+        simulation_speed = min(20, simulation_speed + 1)
+        slider.clear()
+        slider.write(f"Speed: {simulation_speed}x", font=("Arial", 14, "bold"))
     
     def speed_down():
         global simulation_speed
         simulation_speed = max(1, simulation_speed - 1)
-        update_speed_display()
-    
-    def update_speed_display():
         slider.clear()
-        slider.write(f"Speed: {simulation_speed}x", font=("Arial", 12, "normal"))
+        slider.write(f"Speed: {simulation_speed}x", font=("Arial", 14, "bold"))
+    
+    slider.write(f"Speed: {simulation_speed}x", font=("Arial", 14, "bold"))
     
     screen.onkey(speed_up, "Up")
     screen.onkey(speed_down, "Down")
     screen.listen()
-    
-    info = turtle.Turtle()
-    info.penup()
-    info.goto(450, 300)
-    info.write("Up/Down arrows\nto change speed", font=("Arial", 10, "normal"))
-    info.hideturtle()
 
-# Track setup
 def draw_track():
     track = turtle.Turtle()
     track.speed(0)
-    track.color("black")
-    track.pensize(5)
-    
-    # Outer track boundary
-    track.penup()
-    track.goto(-400, 300)
-    track.pendown()
-    track.goto(400, 300)
-    track.goto(400, -300)
-    track.goto(-400, -300)
-    track.goto(-400, 300)
-    
-    # Inner track boundary
-    track.penup()
-    track.goto(-300, 200)
-    track.pendown()
-    track.goto(300, 200)
-    track.goto(300, -200)
-    track.goto(-300, -200)
-    track.goto(-300, 200)
-    
-    # Start/finish line
-    track.color("white")
-    track.pensize(3)
-    track.penup()
-    track.goto(-400, 250)
-    track.pendown()
-    track.goto(-300, 250)
-    
-    # Draw LARGER checkpoints for better detection
-    track.color("yellow")
-    track.pensize(4)
-    
-    # Checkpoint 1 - First corner (BIGGER area)
-    track.penup()
-    track.goto(300, 300)
-    track.pendown()
-    track.goto(400, 200)
-    track.write("1", font=("Arial", 16, "bold"))
-    
-    # Checkpoint 2 - Second corner (BIGGER area)
-    track.penup()
-    track.goto(300, -200)
-    track.pendown()
-    track.goto(400, -300)
-    track.write("2", font=("Arial", 16, "bold"))
-    
-    # Checkpoint 3 - Third corner (BIGGER area)
-    track.penup()
-    track.goto(-300, -300)
-    track.pendown()
-    track.goto(-400, -200)
-    track.write("3", font=("Arial", 16, "bold"))
-    
     track.hideturtle()
+    track.penup()
+    
+    # Outer boundary
+    track.goto(-400, 300)
+    track.pendown()
+    track.pensize(5)
+    track.color("black")
+    for pos in [(400, 300), (400, -300), (-400, -300), (-400, 300)]:
+        track.goto(pos)
+    
+    # Inner boundary
+    track.penup()
+    track.goto(-300, 200)
+    track.pendown()
+    for pos in [(300, 200), (300, -200), (-300, -200), (-300, 200)]:
+        track.goto(pos)
+    
+    # Finish line
+    track.penup()
+    track.goto(-400, 200)
+    track.pendown()
+    track.pensize(3)
+    track.color("black")
+    track.goto(-300, 200)
+    track.penup()
+    track.goto(-350, 210)
+    track.write("Finish Line", font=("Arial", 8, "bold"), align="center")
+    
+    # Checkpoints
+    track.color("yellow")
+    track.pensize(2)
+    
+    checkpoints_pos = [
+        (-100, 250, "1"), (200, 250, "2"), (340, 100, "3"), (340, -100, "4"),
+        (200, -250, "5"), (-100, -250, "6"), (-340, -100, "7"), (-340, 100, "8")
+    ]
+    
+    for x, y, label in checkpoints_pos:
+        track.penup()
+        track.goto(x-5, y)
+        track.pendown()
+        track.circle(12)
+        track.write(f"  {label}", font=("Arial", 10, "bold"))
 
-# Car class
+def get_gen_color(gen):
+    colors = ["red", "orange", "yellow", "lime", "cyan", "blue", "purple", "magenta", "pink", "white"]
+    return colors[gen % len(colors)]
+
 class Car:
-    def __init__(self, x, y):
-        self.turtle = turtle.Turtle()
-        self.turtle.shape("turtle")
-        self.turtle.color("red")
-        self.turtle.penup()
-        self.turtle.goto(x, y)
-        self.turtle.speed(0)
-        self.turtle.setheading(0)
+    def __init__(self, x, y, generation=0):
+        self.t = turtle.Turtle()
+        self.t.shape("turtle")
+        self.t.penup()
+        self.t.goto(x, y)
+        self.t.setheading(0)
+        self.t.speed(0)
         
-        # AI brain
+        self.gen = generation
+        self.color = get_gen_color(generation)
+        self.t.color(self.color)
+        
+        # Enable path drawing
+        self.t.pendown()
+        self.t.pensize(1)
+        
         self.weights = []
-        for i in range(12):
-            self.weights.append(random.uniform(-1, 1))
+        for _ in range(15):
+            if _ < 10:
+                self.weights.append(random.uniform(0, 0.4))
+            else:
+                self.weights.append(random.uniform(10, 35))
         
-        # Performance tracking
-        self.fitness = 0
-        self.time_alive = 0
-        self.distance_traveled = 0
-        self.crashed = False
         self.start_x = x
         self.start_y = y
-        
-        # Enhanced checkpoint tracking
-        self.checkpoint1_passed = False
-        self.checkpoint2_passed = False
-        self.checkpoint3_passed = False
-        self.lap_completed = False
-        
-        # Track progress for better rewards
-        self.max_x = x  # Furthest right reached
-        self.min_y = y  # Furthest down reached
-        self.min_x = x  # Furthest left reached
-        
-        # Movement
-        self.speed = 1
-        self.max_speed = 4
-        
-    def reset_position(self):
-        self.turtle.goto(self.start_x, self.start_y)
-        self.turtle.setheading(0)
-        self.turtle.color("red")
-        self.speed = 1
         self.fitness = 0
-        self.time_alive = 0
-        self.distance_traveled = 0
         self.crashed = False
         
-        # Reset progress tracking
-        self.checkpoint1_passed = False
-        self.checkpoint2_passed = False
-        self.checkpoint3_passed = False
-        self.lap_completed = False
+        self.distance = 0
+        self.checkpoints = [False] * 8
+        self.lap = False
+        self.steps = 0
+        
+        self.max_x = x
+        self.min_y = y
+        self.min_x = x
+        
+    def cleanup(self):
+        self.t.clear()
+        self.t.hideturtle()
+        
+    def reset(self):
+        self.t.clear()
+        self.t.showturtle()
+        self.t.penup()
+        self.t.goto(self.start_x, self.start_y)
+        self.t.setheading(0)
+        self.t.color(self.color)
+        self.t.pendown()
+        
+        self.fitness = 0
+        self.crashed = False
+        self.distance = 0
+        self.checkpoints = [False] * 8
+        self.lap = False
+        self.steps = 0
+        
         self.max_x = self.start_x
         self.min_y = self.start_y
         self.min_x = self.start_x
-        
+    
     def get_sensors(self):
         sensors = []
-        x = self.turtle.xcor()
-        y = self.turtle.ycor()
-        heading = self.turtle.heading()
+        x = self.t.xcor()
+        y = self.t.ycor()
+        heading = self.t.heading()
         
-        sensor_angles = [-90, -45, 0, 45, 90]
-        
-        for angle_offset in sensor_angles:
-            actual_angle = heading + angle_offset
-            distance = self.check_distance(x, y, actual_angle)
-            sensors.append(distance / 100.0)
+        for angle_offset in [-90, -45, 0, 45, 90]:
+            angle = heading + angle_offset
+            dist = self.check_distance(x, y, angle)
+            sensors.append(dist)
         
         return sensors
     
@@ -185,274 +212,359 @@ class Car:
         test_y = y
         distance = 0
         
-        while distance < 100:
-            test_x += math.cos(math.radians(angle)) * 2
-            test_y += math.sin(math.radians(angle)) * 2
-            distance += 2
+        while distance < 150:
+            test_x += math.cos(math.radians(angle)) * 5
+            test_y += math.sin(math.radians(angle)) * 5
+            distance += 5
             
             if test_x > 395 or test_x < -395 or test_y > 295 or test_y < -295:
                 return distance
             
             if -295 < test_x < 295 and -195 < test_y < 195:
                 return distance
-                
-        return 100
-    
-    def think(self, sensors):
-        # BETTER: Let AI learn with minimal rule interference
-        left_sensor = sensors[0]
-        front_left = sensors[1]
-        front_sensor = sensors[2]
-        front_right = sensors[3]
-        right_sensor = sensors[4]
+            
+            if not all(self.checkpoints):
+                if -400 < test_x < -300 and 195 < test_y < 205:
+                    return distance
         
-        # Calculate AI decision
-        turn_decision = 0
-        for i in range(5):
-            turn_decision += sensors[i] * self.weights[i]
+        return 150
         
-        # Speed decision
-        speed_decision = 0
-        for i in range(5):
-            if i + 5 < len(self.weights):
-                speed_decision += sensors[i] * self.weights[i + 5]
-        
-        # ONLY use rules for emergency crash prevention
-        emergency_turn = 0
-        if front_sensor < 0.2:  # Very close to wall ahead
-            if left_sensor > right_sensor:  # More space left
-                emergency_turn = -1
-            else:  # More space right
-                emergency_turn = 1
-        
-        # Apply decisions
-        if emergency_turn != 0:  # Emergency override
-            if emergency_turn < 0:
-                self.turtle.left(15)  # Strong emergency turn
-            else:
-                self.turtle.right(15)
-        else:  # Normal AI control
-            turn_strength = max(-10, min(10, turn_decision * 8))  # Limit turn
-            if turn_strength > 1:
-                self.turtle.right(turn_strength)
-            elif turn_strength < -1:
-                self.turtle.left(abs(turn_strength))
-        
-        # Speed control
-        if front_sensor < 0.3:  # Slow down near walls
-            self.speed = max(0.5, self.speed - 0.1)
-        elif speed_decision > 0 and self.speed < self.max_speed:
-            self.speed += 0.05
-        elif speed_decision < 0 and self.speed > 0.5:
-            self.speed -= 0.05
-    
     def move(self):
-        if not self.crashed:
-            old_x = self.turtle.xcor()
-            old_y = self.turtle.ycor()
+        if self.crashed or self.lap:
+            return
             
-            self.turtle.forward(self.speed)
-            
-            new_x = self.turtle.xcor()
-            new_y = self.turtle.ycor()
-            
-            # Track progress for fitness
-            self.max_x = max(self.max_x, new_x)
-            self.min_y = min(self.min_y, new_y)
-            self.min_x = min(self.min_x, new_x)
-            
-            # Calculate distance traveled
-            dist = math.sqrt((new_x - old_x)**2 + (new_y - old_y)**2)
-            self.distance_traveled += dist
-            
-            self.time_alive += 1
-            
-            self.check_checkpoints()
-            
-    def check_checkpoints(self):
-        x = self.turtle.xcor()
-        y = self.turtle.ycor()
+        old_x = self.t.xcor()
+        old_y = self.t.ycor()
         
-        # BIGGER checkpoint areas for better detection
-        # Checkpoint 1: First corner (top right) - MUCH BIGGER
-        if not self.checkpoint1_passed and x > 280 and 180 < y < 320:
-            self.checkpoint1_passed = True
-            self.turtle.color("orange")
-            print(f"Car reached checkpoint 1! x={x:.1f}, y={y:.1f}")
+        sensors = self.get_sensors()
         
-        # Checkpoint 2: Second corner (bottom right) - BIGGER
-        elif not self.checkpoint2_passed and self.checkpoint1_passed and x > 280 and -320 < y < -180:
-            self.checkpoint2_passed = True
-            self.turtle.color("yellow")
-            print(f"Car reached checkpoint 2! x={x:.1f}, y={y:.1f}")
+        turn_left_total = 0
+        turn_right_total = 0
+        turn_angle_total = 0
+        sensor_count = 0
         
-        # Checkpoint 3: Third corner (bottom left) - BIGGER
-        elif not self.checkpoint3_passed and self.checkpoint2_passed and x < -280 and -320 < y < -180:
-            self.checkpoint3_passed = True
-            self.turtle.color("green")
-            print(f"Car reached checkpoint 3! x={x:.1f}, y={y:.1f}")
+        for i, sensor_dist in enumerate(sensors):
+            if sensor_dist < 80:
+                turn_left_total += self.weights[i]
+                turn_right_total += self.weights[i + 5]
+                turn_angle_total += self.weights[i + 10]
+                sensor_count += 1
         
-        # Lap completed: Back to start area - BIGGER
-        elif not self.lap_completed and self.checkpoint3_passed and x < -280 and 180 < y < 320:
-            self.lap_completed = True
-            self.turtle.color("gold")
-            print(f"Car completed lap! x={x:.1f}, y={y:.1f}")
+        exploration_rate = 0.15
+        
+        if random.random() < exploration_rate:
+            rand = random.random()
+            if rand < 0.33:
+                self.t.left(random.uniform(5, 25))
+            elif rand < 0.66:
+                self.t.right(random.uniform(5, 25))
+        elif sensor_count > 0:
+            turn_angle_total /= sensor_count
+            
+            rand = random.random()
+            total_turn_prob = turn_left_total + turn_right_total
+            
+            if total_turn_prob > 0:
+                if rand < turn_left_total / (turn_left_total + turn_right_total):
+                    self.t.left(random.uniform(5, turn_angle_total))
+                else:
+                    self.t.right(random.uniform(5, turn_angle_total))
+        else:
+            base_exploration = random.random()
+            if base_exploration < self.weights[2]:
+                self.t.left(random.uniform(2, 15))
+            elif base_exploration < self.weights[2] + self.weights[7]:
+                self.t.right(random.uniform(2, 15))
+        
+        self.t.forward(3)
+        
+        new_x = self.t.xcor()
+        new_y = self.t.ycor()
+        
+        self.max_x = max(self.max_x, new_x)
+        self.min_y = min(self.min_y, new_y)
+        self.min_x = min(self.min_x, new_x)
+        
+        self.distance += math.sqrt((new_x - old_x)**2 + (new_y - old_y)**2)
+        self.steps += 1
+        
+        x, y = new_x, new_y
+        
+        if not self.checkpoints[0] and -150 < x < -50 and 220 < y < 280:
+            self.checkpoints[0] = True
+        elif not self.checkpoints[1] and self.checkpoints[0] and 150 < x < 250 and 220 < y < 280:
+            self.checkpoints[1] = True
+        elif not self.checkpoints[2] and self.checkpoints[1] and 310 < x < 370 and 50 < y < 150:
+            self.checkpoints[2] = True
+        elif not self.checkpoints[3] and self.checkpoints[2] and 310 < x < 370 and -150 < y < -50:
+            self.checkpoints[3] = True
+        elif not self.checkpoints[4] and self.checkpoints[3] and 150 < x < 250 and -280 < y < -220:
+            self.checkpoints[4] = True
+        elif not self.checkpoints[5] and self.checkpoints[4] and -150 < x < -50 and -280 < y < -220:
+            self.checkpoints[5] = True
+        elif not self.checkpoints[6] and self.checkpoints[5] and -370 < x < -310 and -150 < y < -50:
+            self.checkpoints[6] = True
+        elif not self.checkpoints[7] and self.checkpoints[6] and -370 < x < -310 and 50 < y < 150:
+            self.checkpoints[7] = True
             
     def check_crash(self):
-        x = self.turtle.xcor()
-        y = self.turtle.ycor()
+        x = self.t.xcor()
+        y = self.t.ycor()
+        
+        if -400 < x < -300 and 195 < y < 205:
+            if all(self.checkpoints) and not self.lap:
+                self.lap = True
+                self.crashed = False
+                self.t.color("gold")
+                self.t.shape("circle")
+                print(f"🏁 Gen {self.gen} completed lap in {self.steps} steps!")
+                return False
+            elif not all(self.checkpoints):
+                self.crashed = True
+                self.t.color("gray")
+                return True
         
         if x > 395 or x < -395 or y > 295 or y < -295:
             self.crashed = True
-            self.turtle.color("gray")
+            self.t.color("gray")
             return True
             
         if -295 < x < 295 and -195 < y < 195:
             self.crashed = True
-            self.turtle.color("gray")
+            self.t.color("gray")
             return True
             
         return False
     
-    def calculate_fitness(self):
-        # MUCH BETTER fitness calculation
-        base_fitness = self.distance_traveled + (self.time_alive * 0.05)
+    def calc_fitness(self):
+        fitness = self.distance * 4
         
-        # Progressive movement rewards (reward partial progress)
-        progress_bonus = 0
+        fitness += max(0, (self.max_x - self.start_x) * 6)
         
-        # Reward moving right (toward first corner)
-        progress_bonus += max(0, (self.max_x - self.start_x) * 5)
+        if self.max_x > 150:
+            fitness += max(0, (self.start_y - self.min_y) * 6)
         
-        # Reward moving down (toward second corner)
-        if self.max_x > 200:  # If made it far right
-            progress_bonus += max(0, (self.start_y - self.min_y) * 5)
+        if self.min_y < -100:
+            fitness += max(0, (self.max_x - self.min_x) * 6)
         
-        # Reward moving left (toward third corner)
-        if self.min_y < -100:  # If made it far down
-            progress_bonus += max(0, (self.max_x - self.min_x) * 5)
+        if not all(self.checkpoints) and self.min_y < 200:
+            penalty = (200 - self.min_y) * 50
+            fitness -= penalty
         
-        # BIG checkpoint bonuses
-        checkpoint_bonus = 0
-        if self.checkpoint1_passed:
-            checkpoint_bonus += 2000
-        if self.checkpoint2_passed:
-            checkpoint_bonus += 4000  
-        if self.checkpoint3_passed:
-            checkpoint_bonus += 6000
+        checkpoint_values = [1500, 3000, 5000, 7500, 10500, 14000, 18000, 23000]
+        for i, passed in enumerate(self.checkpoints):
+            if passed:
+                fitness += checkpoint_values[i]
         
-        # HUGE lap bonus
-        lap_bonus = 15000 if self.lap_completed else 0
+        if self.lap:
+            fitness += 100000
+            time_bonus = max(0, 20000 - self.steps * 5)
+            fitness += time_bonus
         
-        # Time bonus (reward faster completion)
-        time_bonus = 0
-        if self.lap_completed:
-            time_bonus = max(0, 1000 - self.time_alive)
-        
-        self.fitness = base_fitness + progress_bonus + checkpoint_bonus + lap_bonus + time_bonus
-        
+        self.fitness = max(0, fitness)
         return self.fitness
 
-# Genetic Algorithm (same structure, better parameters)
 class Evolution:
-    def __init__(self, population_size):
-        self.population_size = population_size
-        self.generation = 0
+    # DNA file in the race folder
+    DNA_FILE = os.path.join(os.path.dirname(__file__), "best_dna.txt")
+    
+    def __init__(self, pop_size):
+        self.pop_size = pop_size
+        self.gen = 0
         self.cars = []
+        self.best_fitness_ever = 0
+        self.best_lap_time = float('inf')
         
-        for i in range(population_size):
-            y_offset = (i - population_size//2) * 8  # Better spacing
-            car = Car(-350, 250 + y_offset)
+        print(f"📁 DNA file location: {self.DNA_FILE}")
+        
+        # Try to load DNA from file
+        best_dna = self.load_dna()
+        
+        for i in range(pop_size):
+            y_offset = (i - pop_size//2) * 8
+            car = Car(-350, 250 + y_offset, self.gen)
+            
+            # If we have saved DNA, use it for first car and mutate for others
+            if best_dna is not None:
+                if i == 0:
+                    car.weights = best_dna.copy()
+                else:
+                    car.weights = best_dna.copy()
+                    # Add mutations to create diversity
+                    for j in range(len(car.weights)):
+                        if random.random() < 0.5:
+                            if j < 10:
+                                car.weights[j] += random.uniform(-0.1, 0.1)
+                                car.weights[j] = max(0, min(0.4, car.weights[j]))
+                            else:
+                                car.weights[j] += random.uniform(-8, 8)
+                                car.weights[j] = max(10, min(35, car.weights[j]))
+            
             self.cars.append(car)
+        
+        if best_dna is not None:
+            print("✅ Loaded previous best DNA from file!")
+        else:
+            print("🆕 Starting fresh - no previous DNA found")
+    
+    def load_dna(self):
+        """Load DNA from file if it exists"""
+        if not os.path.exists(self.DNA_FILE):
+            return None
+        
+        try:
+            with open(self.DNA_FILE, 'r') as f:
+                lines = f.readlines()
+                if len(lines) < 2:
+                    return None
+                
+                # Read metadata
+                metadata = lines[0].strip().split(',')
+                self.best_fitness_ever = float(metadata[0])
+                if len(metadata) > 1 and metadata[1] != 'inf':
+                    self.best_lap_time = int(metadata[1])
+                
+                # Read DNA weights
+                dna = [float(x) for x in lines[1].strip().split(',')]
+                if len(dna) == 15:
+                    return dna
+        except Exception as e:
+            print(f"⚠️ Error loading DNA: {e}")
+        
+        return None
+    
+    def save_dna(self, car):
+        """Save best DNA to file"""
+        try:
+            with open(self.DNA_FILE, 'w') as f:
+                # Save metadata: fitness, lap_time
+                lap_str = str(self.best_lap_time) if self.best_lap_time < float('inf') else 'inf'
+                f.write(f"{self.best_fitness_ever},{lap_str}\n")
+                
+                # Save DNA weights
+                dna_str = ','.join(str(w) for w in car.weights)
+                f.write(dna_str + '\n')
+            
+            print(f"💾 Saved DNA to {self.DNA_FILE}")
+        except Exception as e:
+            print(f"⚠️ Error saving DNA: {e}")
     
     def run_generation(self):
-        for car in self.cars:
-            car.reset_position()
+        print(f"\n{'='*50}")
+        print(f"Generation {self.gen}")
+        print(f"{'='*50}")
         
-        for step in range(3000):  # More time for learning
-            alive_cars = 0
-            
+        for car in self.cars:
+            car.reset()
+        
+        for step in range(2000):
             for car in self.cars:
-                if not car.crashed:
-                    sensors = car.get_sensors()
-                    car.think(sensors)
+                if not car.crashed and not car.lap:
                     car.move()
                     car.check_crash()
-                    alive_cars += 1
             
-            if step % simulation_speed == 0:
+            if step % max(1, simulation_speed) == 0:
                 screen.update()
-            
-            if alive_cars == 0:
-                break
         
         for car in self.cars:
-            car.calculate_fitness()
+            car.calc_fitness()
         
-        self.cars.sort(key=lambda x: x.fitness, reverse=True)
-        best_car = self.cars[0]
+        self.cars.sort(key=lambda c: c.fitness, reverse=True)
         
-        print(f"Generation {self.generation} complete")
-        print(f"Best fitness: {best_car.fitness:.2f}")
-        print(f"Best progress: x={best_car.max_x:.1f}, min_y={best_car.min_y:.1f}")
-        checkpoints = 0
-        if best_car.checkpoint1_passed: checkpoints += 1
-        if best_car.checkpoint2_passed: checkpoints += 1  
-        if best_car.checkpoint3_passed: checkpoints += 1
-        print(f"Best checkpoints: {checkpoints}/3")
-        if best_car.lap_completed:
-            print("LAP COMPLETED!")
+        best = self.cars[0]
+        checkpoints_passed = sum(best.checkpoints)
+        
+        # Track and save best
+        should_save = False
+        
+        if best.fitness > self.best_fitness_ever:
+            self.best_fitness_ever = best.fitness
+            should_save = True
+            print(f"🌟 NEW BEST FITNESS! 🌟")
+        
+        if best.lap and best.steps < self.best_lap_time:
+            self.best_lap_time = best.steps
+            should_save = True
+            print(f"⚡ NEW FASTEST LAP! ⚡")
+        
+        if should_save:
+            self.save_dna(best)
+        
+        # Update UI
+        update_ui(self.gen, self.best_fitness_ever, self.best_lap_time, checkpoints_passed)
+        
+        print(f"\n\nBest fitness: {best.fitness:.0f} (Record: {self.best_fitness_ever:.0f})")
+        print(f"\nCheckpoints: {checkpoints_passed}/8")
+        if best.lap:
+            print(f"\n✅ BEST LAP THIS GEN: {best.steps} steps")
+            print(f"\n🏆 FASTEST LAP EVER: {self.best_lap_time} steps")
+        elif self.best_lap_time < float('inf'):
+            print(f"\n🏆 FASTEST LAP EVER: {self.best_lap_time} steps")
+        
+        print(f"DNA (L=left prob, R=right prob):")
+        sensors = ["Left", "F-Left", "Front", "F-Right", "Right"]
+        for i in range(5):
+            print(f"  {sensors[i]}: L={best.weights[i]:.2f}, R={best.weights[i+5]:.2f}, A={best.weights[i+10]:.0f}°")
         
     def evolve(self):
-        # Keep top 30% for better diversity
-        survivors = max(3, int(self.population_size * 0.3))
-        new_population = []
+        for car in self.cars:
+            car.cleanup()
         
-        for i in range(survivors):
-            survivor = Car(self.cars[i].start_x, self.cars[i].start_y)
-            survivor.weights = self.cars[i].weights.copy()
-            new_population.append(survivor)
+        survivors = max(3, int(self.pop_size * 0.25))
+        new_pop = []
         
-        while len(new_population) < self.population_size:
-            parent1 = random.choice(self.cars[:survivors])
-            parent2 = random.choice(self.cars[:survivors])
-            child = self.create_child(parent1, parent2)
-            new_population.append(child)
+        self.gen += 1
         
-        self.cars = new_population
-        self.generation += 1
-    
-    def create_child(self, parent1, parent2):
-        child = Car(parent1.start_x, parent1.start_y)
+        for i in range(min(3, survivors)):
+            elite = Car(self.cars[i].start_x, self.cars[i].start_y, self.gen)
+            elite.weights = self.cars[i].weights.copy()
+            new_pop.append(elite)
         
-        for i in range(len(child.weights)):
-            if random.random() < 0.5:
-                child.weights[i] = parent1.weights[i]
-            else:
-                child.weights[i] = parent2.weights[i]
+        while len(new_pop) < self.pop_size:
+            p1 = self.tournament_select(survivors)
+            p2 = self.tournament_select(survivors)
             
-            # Reduced mutation for more stable learning
-            if random.random() < 0.15:  # 15% chance to mutate
-                child.weights[i] += random.uniform(-0.2, 0.2)
-                child.weights[i] = max(-2, min(2, child.weights[i]))  # Larger range
+            child = Car(p1.start_x, p1.start_y, self.gen)
+            
+            for i in range(len(child.weights)):
+                if random.random() < 0.5:
+                    child.weights[i] = p1.weights[i]
+                else:
+                    child.weights[i] = p2.weights[i]
+            
+            for i in range(len(child.weights)):
+                if random.random() < 0.3:
+                    if i < 10:
+                        child.weights[i] += random.uniform(-0.08, 0.08)
+                        child.weights[i] = max(0, min(0.4, child.weights[i]))
+                    else:
+                        child.weights[i] += random.uniform(-6, 6)
+                        child.weights[i] = max(10, min(35, child.weights[i]))
+            
+            new_pop.append(child)
         
-        return child
+        self.cars = new_pop
+    
+    def tournament_select(self, survivors):
+        contestants = random.sample(self.cars[:survivors], min(3, survivors))
+        return max(contestants, key=lambda c: c.fitness)
 
-# Main program
 def main():
     draw_track()
+    setup_ui()
     setup_speed_slider()
     
-    evolution = Evolution(20)  # More cars for better learning
+    evo = Evolution(20)
     
-    for gen in range(200):  # More generations
-        print(f"\nStarting Generation {gen + 1}")
-        evolution.run_generation()
-        evolution.evolve()
-        
-        time.sleep(0.3 / simulation_speed)
+    try:
+        for _ in range(500):
+            evo.run_generation()
+            evo.evolve()
+            # Removed time.sleep - no delay between generations
+    except KeyboardInterrupt:
+        print("\nStopped by user")
     
-    print("Evolution complete!")
+    print("\nEvolution complete!")
 
 if __name__ == "__main__":
     main()
